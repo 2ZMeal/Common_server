@@ -36,18 +36,23 @@ public class AuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String userIdHeader = request.getHeader("X-User-Id");
-        String roleHeader = request.getHeader("X-User-Role");
+        String roleHeader = request.getHeader("X-User-Roles");
+        String emailHeader = request.getHeader("X-User-Email");
 
-        if(userIdHeader != null && roleHeader != null) {
+        // 기존에 있는 내역이 있다면 삭제
+        SecurityContextHolder.clearContext();
+
+        if(userIdHeader != null && roleHeader != null && emailHeader != null) {
             try {
                 String userId = userIdHeader;
-                Role role = Role.valueOf(roleHeader);
+                String emailStr = emailHeader;
 
+                Role role = Role.valueOf(roleHeader);
                 List<GrantedAuthority> authorities
                         = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
 
                 CustomUserPrincipal principal
-                        = new CustomUserPrincipal(userId, role);
+                        = new CustomUserPrincipal(userId, role, emailStr);
 
                 Authentication authentication
                         = new UsernamePasswordAuthenticationToken(
@@ -61,7 +66,6 @@ public class AuthenticationFilter extends OncePerRequestFilter {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 return;
             }
-
         }
         filterChain.doFilter(request, response);
     }

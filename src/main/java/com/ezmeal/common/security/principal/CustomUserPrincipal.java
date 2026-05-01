@@ -8,9 +8,11 @@ public class CustomUserPrincipal {
 
     private final String userId;
     private final Role role;
+    private final String email;
 
-    public CustomUserPrincipal(String userId, Role role) {
+    public CustomUserPrincipal(String userId, Role role, String email) {
         this.userId = userId;
         this.role = role;
+        this.email = email;
     }
 }

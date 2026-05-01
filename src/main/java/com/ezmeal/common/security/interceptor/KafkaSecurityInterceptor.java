@@ -21,17 +21,19 @@ public class KafkaSecurityInterceptor<K, V> implements RecordInterceptor<K, V> {
     public ConsumerRecord<K, V> intercept(ConsumerRecord<K, V> record, org.apache.kafka.clients.consumer.Consumer<K, V> consumer) {
 
         Header userIdHeader = record.headers().lastHeader("X-User-Id");
-        Header roleHeader = record.headers().lastHeader("X-User-Role");
+        Header roleHeader = record.headers().lastHeader("X-User-Roles");
+        Header emailHeader = record.headers().lastHeader("X-User-Email");
 
         // 사용자 정보가 헤더에 존재하는 경우
-        if (userIdHeader != null && roleHeader != null) {
+        if (userIdHeader != null && roleHeader != null && emailHeader != null) {
             try {
                 String userId = new String(userIdHeader.value(), StandardCharsets.UTF_8);
                 String roleStr = new String(roleHeader.value(), StandardCharsets.UTF_8);
+                String emailStr = new String(emailHeader.value(), StandardCharsets.UTF_8);
                 Role role = Role.valueOf(roleStr);
 
                 List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-                CustomUserPrincipal principal = new CustomUserPrincipal(userId, role);
+                CustomUserPrincipal principal = new CustomUserPrincipal(userId, role, emailStr);
 
                 Authentication authentication = new UsernamePasswordAuthenticationToken(principal, null, authorities);
 
