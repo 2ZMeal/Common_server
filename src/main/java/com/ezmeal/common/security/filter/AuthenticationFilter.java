@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -18,6 +19,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class AuthenticationFilter extends OncePerRequestFilter {
+
+    // MDC 키 설정 -> 하위 서버에서 traceID를 추출하고자 한다면 MDC를 통해 가져옵니다.
+    private static final String TRACE_ID_KEY = "traceId";
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -38,14 +42,23 @@ public class AuthenticationFilter extends OncePerRequestFilter {
         String userIdHeader = request.getHeader("X-User-Id");
         String roleHeader = request.getHeader("X-User-Roles");
         String emailHeader = request.getHeader("X-User-Email");
+        String traceIdHeader = request.getHeader("X-TraceId");
+
+        // TraceId가 없다면 자체 생성 (게이트웨이를 거치지 않는 요청의 경우)
+        if (traceIdHeader == null || traceIdHeader.isBlank()) {
+            traceIdHeader = java.util.UUID.randomUUID().toString();
+        }
 
         // 기존에 있는 내역이 있다면 삭제
         SecurityContextHolder.clearContext();
 
-        if(userIdHeader != null && roleHeader != null && emailHeader != null) {
+        if(userIdHeader != null && roleHeader != null && emailHeader != null && traceIdHeader != null) {
             try {
                 String userId = userIdHeader;
                 String emailStr = emailHeader;
+
+                // MDC에 traceId 저장
+                MDC.put(TRACE_ID_KEY, traceIdHeader);
 
                 Role role = Role.valueOf(roleHeader);
                 List<GrantedAuthority> authorities
@@ -68,5 +81,8 @@ public class AuthenticationFilter extends OncePerRequestFilter {
             }
         }
         filterChain.doFilter(request, response);
+
+        // 스레드 반환 전 MDC 초기화
+        MDC.remove(TRACE_ID_KEY);
     }
 }

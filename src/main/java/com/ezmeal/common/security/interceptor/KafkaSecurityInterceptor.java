@@ -4,6 +4,8 @@ import com.ezmeal.common.enums.Role;
 import com.ezmeal.common.security.principal.CustomUserPrincipal;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
+import org.slf4j.MDC;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
@@ -17,12 +19,23 @@ import org.springframework.security.core.context.SecurityContextHolder;
 @Slf4j
 public class KafkaSecurityInterceptor<K, V> implements RecordInterceptor<K, V> {
 
+    private static final String TRACE_ID_KEY = "traceId";
+
     @Override
     public ConsumerRecord<K, V> intercept(ConsumerRecord<K, V> record, org.apache.kafka.clients.consumer.Consumer<K, V> consumer) {
 
         Header userIdHeader = record.headers().lastHeader("X-User-Id");
         Header roleHeader = record.headers().lastHeader("X-User-Roles");
         Header emailHeader = record.headers().lastHeader("X-User-Email");
+        Header traceIdHeader = record.headers().lastHeader("X-TraceId");
+
+        // traceId 헤더가 없으면 추가 (게이트웨이를 거치지 않은 경우)
+        String traceId = (traceIdHeader != null)
+                ? new String(traceIdHeader.value(), StandardCharsets.UTF_8)
+                : UUID.randomUUID().toString();
+
+        // MDC에 x-tracId 저장
+        MDC.put(TRACE_ID_KEY, traceId);
 
         // 사용자 정보가 헤더에 존재하는 경우
         if (userIdHeader != null && roleHeader != null && emailHeader != null) {
@@ -58,11 +71,17 @@ public class KafkaSecurityInterceptor<K, V> implements RecordInterceptor<K, V> {
     @Override
     public void success(ConsumerRecord<K, V> record, org.apache.kafka.clients.consumer.Consumer<K, V> consumer) {
         SecurityContextHolder.clearContext();
+
+        // 성공 후에 MDC 제거
+        MDC.remove(TRACE_ID_KEY);
     }
 
     // 에러가 발생하는 경우에도 SecurityContext를 비움
     @Override
     public void failure(ConsumerRecord<K, V> record, Exception exception, org.apache.kafka.clients.consumer.Consumer<K, V> consumer) {
         SecurityContextHolder.clearContext();
+
+        // 에러 발생 시에도 MDC 제거
+        MDC.remove(TRACE_ID_KEY);
     }
 }
