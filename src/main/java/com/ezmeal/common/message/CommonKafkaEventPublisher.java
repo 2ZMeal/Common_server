@@ -1,7 +1,12 @@
 package com.ezmeal.common.message;
 
+import com.ezmeal.common.security.principal.CustomUserPrincipal;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 /*
@@ -61,7 +66,20 @@ public class CommonKafkaEventPublisher {
         // EventEnvelop의 of를 통해 각 payload(T)에 맞게 EventEnvelop 객체를 생성
         EventEnvelope<T> envelope = EventEnvelope.of(eventType, key, payload);
 
-        // envelop로 포장되어 최종 전달
-        kafkaTemplate.send(topic, key, envelope);
+        // 헤더를 제어하기 위해 ProducerRecord 객체 생성
+        // (topic, key, envelope) 부분에 envelope 포함됨
+        ProducerRecord<String, EventEnvelope<? extends DomainEvent>> record =
+                new ProducerRecord<>(topic, key, envelope);
+
+        // SecurityContext에서 유저 정보를 추출하여 카프카 커스텀 헤더에 직접 추가
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getPrincipal() instanceof CustomUserPrincipal principal) {
+            record.headers().add("X-User-Id", principal.getUserId().getBytes(StandardCharsets.UTF_8));
+            record.headers().add("X-User-Roles", principal.getRole().name().getBytes(StandardCharsets.UTF_8));
+            record.headers().add("X-User-Email", principal.getEmail().getBytes(StandardCharsets.UTF_8));
+        }
+
+        // 내용이 envelope로 포장되고 헤더에 사용자 정보를 추가하여 최종 전달
+        kafkaTemplate.send(record);
     }
 }
