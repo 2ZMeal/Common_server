@@ -2,6 +2,7 @@ package com.ezmeal.common.message.inbox;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,10 +59,15 @@ public class InboxProcessor {
             return;
         }
 
-        // 처음 보는 메시지인 경우, Inbox DB에 Insert 함,
-        // 0.00001초 차이로 와도
-        // eventId에 걸어둔 Unique 제약으로 DB에서 예외가 터져 중복을 막음
-        inboxRepository.save(new InboxMessage(eventId));
+        // Interceptor에서 넣어둔 원본 TraceId 꺼내기
+        String originalTraceId = MDC.get("originalTraceId");
+
+        /* 처음 보는 메시지인 경우, Inbox DB에 Insert 함,
+           0.00001초 차이로 와도
+           eventId에 걸어둔 Unique 제약으로 DB에서 예외가 터져 중복을 막음
+           Inbox DB에 저장 시 TraceId 함께 저장
+         */
+        inboxRepository.save(new InboxMessage(eventId, originalTraceId));
 
         // 람다식으로 넘겨준 비즈니스 로직(각 도메인의 service에 있는 transaction)을 실행합니다.
         businessLogic.run();

@@ -7,6 +7,7 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
+import org.slf4j.MDC;
 import org.springframework.kafka.listener.RecordInterceptor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -23,6 +24,13 @@ public class KafkaSecurityInterceptor<K, V> implements RecordInterceptor<K, V> {
         Header userIdHeader = record.headers().lastHeader("X-User-Id");
         Header roleHeader = record.headers().lastHeader("X-User-Roles");
         Header emailHeader = record.headers().lastHeader("X-User-Email");
+        Header traceIdHeader = record.headers().lastHeader("X-Original-Trace-Id");
+
+        // 원본 TraceId 복원
+        if (traceIdHeader != null) {
+            String originalTraceId = new String(traceIdHeader.value(), StandardCharsets.UTF_8);
+            MDC.put("originalTraceId", originalTraceId);
+        }
 
         // 사용자 정보가 헤더에 존재하는 경우
         if (userIdHeader != null && roleHeader != null && emailHeader != null) {
@@ -58,11 +66,13 @@ public class KafkaSecurityInterceptor<K, V> implements RecordInterceptor<K, V> {
     @Override
     public void success(ConsumerRecord<K, V> record, org.apache.kafka.clients.consumer.Consumer<K, V> consumer) {
         SecurityContextHolder.clearContext();
+        MDC.remove("originalTraceId");
     }
 
     // 에러가 발생하는 경우에도 SecurityContext를 비움
     @Override
     public void failure(ConsumerRecord<K, V> record, Exception exception, org.apache.kafka.clients.consumer.Consumer<K, V> consumer) {
         SecurityContextHolder.clearContext();
+        MDC.remove("originalTraceId");
     }
 }

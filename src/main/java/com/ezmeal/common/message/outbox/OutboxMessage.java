@@ -69,6 +69,10 @@ public class OutboxMessage extends BaseEntity {
     @Column(nullable = false)
     private OutboxStatus status;
 
+    // 원본 traceId 기록 (비동기 스레드에서 수행되기 때문)
+    @Column
+    private String traceId;
+
     /*
     * 비동기 스케줄러(Relay)가 카프카 헤더에 X-User-Id 등을 복구하기 위한 필드
     * 시스템이 발행하는 이벤트일 수도 있기에 nullable 허용
@@ -86,7 +90,7 @@ public class OutboxMessage extends BaseEntity {
     * 최초 생성할 때는 무조건 초기 상태(status)를 INIT으로 하도록 설정
     * */
     @Builder
-    public OutboxMessage(String topic, String aggregateId, String eventType, String eventId, String payload, String userId, String userRole, String userEmail) {
+    public OutboxMessage(String topic, String aggregateId, String eventType, String eventId, String payload, String userId, String userRole, String userEmail, String traceId) {
         this.topic = topic;
         this.aggregateId = aggregateId;
         this.eventType = eventType;
@@ -95,6 +99,7 @@ public class OutboxMessage extends BaseEntity {
         this.userId = userId;
         this.userRole = userRole;
         this.userEmail = userEmail;
+        this.traceId = traceId;
         this.status = OutboxStatus.INIT;
     }
 

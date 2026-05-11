@@ -43,8 +43,13 @@ public class InboxMessage {
     @Column(nullable = false, updatable = false)
     private LocalDateTime processedAt;
 
-    public InboxMessage(String eventId) {
+    // 원본 traceId
+    @Column
+    private String traceId;
+
+    public InboxMessage(String eventId, String traceId) {
         this.eventId = eventId;
+        this.traceId = traceId;
         this.processedAt = LocalDateTime.now();
     }
 }

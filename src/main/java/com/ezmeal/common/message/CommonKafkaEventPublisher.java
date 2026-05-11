@@ -6,6 +6,7 @@ import com.ezmeal.common.message.outbox.OutboxRepository;
 import com.ezmeal.common.security.principal.CustomUserPrincipal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -66,6 +67,9 @@ public class CommonKafkaEventPublisher {
     // 스프링 내부 이벤트를 던지기 위한 퍼블리셔 (스프링 기본 제공 Bean)
     private final ApplicationEventPublisher applicationEventPublisher;
 
+    // Tracer 추가 (현재 스레드의 Trace 정보 추출용)
+    private final Tracer tracer;
+
     public <T extends DomainEvent> void publish(
             String topic,
             /*
@@ -103,6 +107,12 @@ public class CommonKafkaEventPublisher {
             email = principal.getEmail();
         }
 
+        // 현재 스레드의 Zipkin TraceId 추출
+        String traceId = null;
+        if (tracer != null && tracer.currentSpan() != null) {
+            traceId = tracer.currentSpan().context().traceId();
+        }
+
         try {
             // 객체를 JSON 문자열로 직렬화
             String jsonPayload = objectMapper.writeValueAsString(envelope);
@@ -117,6 +127,7 @@ public class CommonKafkaEventPublisher {
                     .userId(userId)
                     .userRole(role)
                     .userEmail(email)
+                    .traceId(traceId) // 추출한 traceId DB에 저장
                     .build();
 
             // 트랜잭션 안에서 DB Insert 발생
